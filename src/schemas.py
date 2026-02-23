@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List, Any
 
 
 class User(BaseModel):
@@ -51,6 +53,99 @@ class VerifyRequest(BaseModel):
     code: int
     hashcode: str
     email: str
+
+
+# === Photo Processor Schemas ===
+
+class PhotoBase(BaseModel):
+    id: int
+    url: str
+    processed: bool
+    timestamp: Optional[datetime] = None
+
+
+class PhotoInfo(PhotoBase):
+    user_id: int
+
+
+class PhotoUploadResponse(BaseModel):
+    photo_id: int
+    task_id: str
+    status: str
+    message: str
+    original_filename: str
+    saved_as: str
+
+
+class TaskStatusBase(BaseModel):
+    task_id: str
+    state: str
+
+
+class TaskStatusPending(TaskStatusBase):
+    state: str = "PENDING"
+    status: str
+
+
+class TaskStatusProcessing(TaskStatusBase):
+    state: str = "PROCESSING"
+    progress: int = 0
+    status: str
+    faces: int = 0
+    plates: int = 0
+
+
+class TaskStatusSuccess(TaskStatusBase):
+    state: str = "SUCCESS"
+    result: dict
+
+
+class TaskStatusFailure(TaskStatusBase):
+    state: str = "FAILURE"
+    error: str
+
+
+class TaskStatusOther(TaskStatusBase):
+    state: str
+    info: Any
+
+
+TaskStatus = TaskStatusPending | TaskStatusProcessing | TaskStatusSuccess | TaskStatusFailure | TaskStatusOther
+
+
+class UserPhotosResponse(BaseModel):
+    user_id: int
+    total: int
+    limit: int
+    offset: int
+    photos: List[PhotoBase]
+
+
+class UnprocessedPhotosResponse(BaseModel):
+    count: int
+    photos: List[PhotoInfo]
+
+
+class PhotoDeleteResponse(BaseModel):
+    message: str
+    photo_id: int
+
+
+class PhotoStatusUpdateRequest(BaseModel):
+    isProcessed: bool = True
+
+
+class PhotoStatusUpdateResponse(BaseModel):
+    message: str
+    photo_id: int
+    isProcessed: bool
+
+
+class PhotoStatsResponse(BaseModel):
+    user_id: int
+    total: int
+    processed: int
+    unprocessed: int
 
 
 
