@@ -177,10 +177,13 @@ async def get_user_photos(
     Получить все фото пользователя с пагинацией
     """
     user_id = current_user['id']
+    print(f"[get_user_photos endpoint] user_id={user_id}, limit={limit}, offset={offset}, processed={processed}")
     photos = database.get_user_photos(user_id, limit, offset)
+    print(f"[get_user_photos endpoint] получено фото из БД: {len(photos) if photos else 0}")
 
     if processed is not None:
         photos = [p for p in photos if p.isProcessed == processed]
+        print(f"[get_user_photos endpoint] после фильтра processed={processed}: {len(photos)}")
 
     total = database.get_photos_count(user_id)
 

@@ -134,7 +134,8 @@ def blur_area(image, x1, y1, x2, y2, kernel_size=(99, 99), sigma=30, feather_rat
 
 @celery_app.task(bind=True, name='process_image_with_yolo')
 def process_image_with_yolo(self, image_path: str, output_path: str = None,
-                            blur_faces: bool = True, blur_plates: bool = True):
+                            blur_faces: bool = True, blur_plates: bool = True,
+                            photo_id: int = None):
     """
     Celery задача для обработки одного изображения YOLO моделью
     """

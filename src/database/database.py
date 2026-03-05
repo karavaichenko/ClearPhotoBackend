@@ -18,7 +18,8 @@ class Database:
             pool_size=5,
             max_overflow=10,
             pool_pre_ping=True,
-            pool_recycle=3600,
+            pool_recycle=300,
+            pool_timeout=30,
         )
         self.mapped_registry = registry()
         self._session = None
@@ -33,18 +34,25 @@ class Database:
 
     def _ensure_session(self):
         try:
-            self.session.execute(select(1)).scalar()
-            return self.session
+            # Проверяем, активна ли сессия
+            if self._session is not None and not self._session.is_active:
+                try:
+                    self._session.close()
+                except:
+                    pass
+                self._session = Session(self.engine)
+            elif self._session is None:
+                self._session = Session(self.engine)
+            return self._session
         except Exception as e:
-            print(f"⚠️ Ошибка соединения: {e}, пересоздаю сессию...")
-            # Создаем новую сессию
+            print(f"Ошибка соединения: {e}, пересоздаю сессию...")
             if self._session:
                 try:
                     self._session.close()
                 except:
                     pass
             self._session = Session(self.engine)
-            return self.session
+            return self._session
 
     def add(self, obj):
         session = self._ensure_session()
@@ -52,7 +60,7 @@ class Database:
             session.add(obj)
             session.commit()
         except Exception as e:
-            print(f"⚠️ Ошибка при добавлении: {e}, пробую еще раз...")
+            print(f"Ошибка при добавлении: {e}, пробую еще раз...")
             session.rollback()
             if self._session:
                 try:
@@ -183,7 +191,8 @@ class Database:
                 .limit(limit)
                 .offset(offset)
             )
-            photos = res.scalars().all()
+            photos = res.scalars().unique().all()
+            print(f"[get_user_photos] user_id={user_id}, найдено фото: {len(photos)}")
             return photos
         except Exception as e:
             print(f"Ошибка при получении фото пользователя {user_id}: {e}")
@@ -201,7 +210,9 @@ class Database:
                     .limit(limit)
                     .offset(offset)
                 )
-                return res.scalars().all()
+                photos = res.scalars().unique().all()
+                print(f"[get_user_photos retry] user_id={user_id}, найдено фото: {len(photos)}")
+                return photos
             except Exception as e2:
                 print(f"Повторная ошибка: {e2}")
                 return []
@@ -215,7 +226,7 @@ class Database:
                 .order_by(ProcessPhotoModel.timestamp.asc())
                 .limit(limit)
             )
-            photos = res.scalars().all()
+            photos = res.scalars().unique().all()
             return photos
         except Exception as e:
             print(f"Ошибка при получении необработанных фото: {e}")
@@ -265,7 +276,7 @@ class Database:
                 query = query.where(ProcessPhotoModel.user_id == user_id)
 
             res = session.execute(query)
-            count = len(res.scalars().all())
+            count = len(res.scalars().unique().all())
             return count
         except Exception as e:
             print(f"Ошибка при подсчете фото: {e}")
