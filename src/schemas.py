@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from enum import Enum
 from datetime import datetime
 from typing import Optional, List, Any
 
@@ -55,97 +56,32 @@ class VerifyRequest(BaseModel):
     email: str
 
 
-# === Photo Processor Schemas ===
 
-class PhotoBase(BaseModel):
-    id: int
-    url: str
-    processed: bool
-    timestamp: Optional[datetime] = None
+# ========== Модели для обработки фото ===========
 
 
-class PhotoInfo(PhotoBase):
-    user_id: int
+class ResultEnum(str, Enum):
+    success = "success"
+    failed = "failed"
 
+class PhotoProcessResult(BaseModel):
+    id: str | None
+    success: bool
+    input_path: str | None
+    output_path: str | None
+    faces: int
+    plates: int
 
-class PhotoUploadResponse(BaseModel):
-    photo_id: int
-    task_id: str
-    status: str
-    message: str
-    original_filename: str
-    saved_as: str
+class PhotoSchema(BaseModel):
+    id: int | None
+    input_path: str | None
+    output_path: str | None
+    faces: int
+    plates: int
 
+class PhotosHistory(BaseModel):
+    photos: list[PhotoSchema]
 
-class TaskStatusBase(BaseModel):
-    task_id: str
-    state: str
-
-
-class TaskStatusPending(TaskStatusBase):
-    state: str = "PENDING"
-    status: str
-
-
-class TaskStatusProcessing(TaskStatusBase):
-    state: str = "PROCESSING"
-    progress: int = 0
-    status: str
-    faces: int = 0
-    plates: int = 0
-
-
-class TaskStatusSuccess(TaskStatusBase):
-    state: str = "SUCCESS"
-    result: dict
-
-
-class TaskStatusFailure(TaskStatusBase):
-    state: str = "FAILURE"
-    error: str
-
-
-class TaskStatusOther(TaskStatusBase):
-    state: str
-    info: Any
-
-
-TaskStatus = TaskStatusPending | TaskStatusProcessing | TaskStatusSuccess | TaskStatusFailure | TaskStatusOther
-
-
-class UserPhotosResponse(BaseModel):
-    user_id: int
-    total: int
-    limit: int
-    offset: int
-    photos: List[PhotoBase]
-
-
-class UnprocessedPhotosResponse(BaseModel):
-    count: int
-    photos: List[PhotoInfo]
-
-
-class PhotoDeleteResponse(BaseModel):
-    message: str
-    photo_id: int
-
-
-class PhotoStatusUpdateRequest(BaseModel):
-    isProcessed: bool = True
-
-
-class PhotoStatusUpdateResponse(BaseModel):
-    message: str
-    photo_id: int
-    isProcessed: bool
-
-
-class PhotoStatsResponse(BaseModel):
-    user_id: int
-    total: int
-    processed: int
-    unprocessed: int
-
-
-
+class DeletePhotoResponse(BaseModel):
+    result: ResultEnum = ResultEnum.success
+    

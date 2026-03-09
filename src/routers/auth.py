@@ -101,6 +101,6 @@ def logout():
 
 def add_cookie(content, refresh, access):
     response = JSONResponse(content=content)
-    response.set_cookie(key="access_token", value=access)
-    response.set_cookie(key="refresh_token", value=refresh)
+    response.set_cookie(key="access_token", value=access, samesite="strict")
+    response.set_cookie(key="refresh_token", value=refresh, samesite="strict")
     return response

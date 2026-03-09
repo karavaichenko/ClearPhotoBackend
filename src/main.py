@@ -1,14 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from src.routers import auth, photo_processor
+from src.routers import auth, photo_processor, photo_history
 
 app = FastAPI()
 
-
 app.include_router(auth.router)
 app.include_router(photo_processor.router)
-
+app.include_router(photo_history.router)
 
 origins = [
     "http://localhost",

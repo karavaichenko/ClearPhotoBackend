@@ -1,8 +1,8 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select, delete
-from sqlalchemy.orm import registry, Session
+from sqlalchemy import create_engine, select, delete, desc
+from sqlalchemy.orm import Session
 from datetime import datetime
 
 from src.database.models import AbstractModel, UserModel, ProcessPhotoModel
@@ -21,266 +21,138 @@ class Database:
             pool_recycle=300,
             pool_timeout=30,
         )
-        self.mapped_registry = registry()
-        self._session = None
         with Session(self.engine) as session:
             AbstractModel.metadata.create_all(self.engine)
 
-    @property
-    def session(self):
-        if self._session is None:
-            self._session = Session(self.engine)
-        return self._session
-
-    def _ensure_session(self):
-        try:
-            # Проверяем, активна ли сессия
-            if self._session is not None and not self._session.is_active:
-                try:
-                    self._session.close()
-                except:
-                    pass
-                self._session = Session(self.engine)
-            elif self._session is None:
-                self._session = Session(self.engine)
-            return self._session
-        except Exception as e:
-            print(f"Ошибка соединения: {e}, пересоздаю сессию...")
-            if self._session:
-                try:
-                    self._session.close()
-                except:
-                    pass
-            self._session = Session(self.engine)
-            return self._session
+    def _get_session(self):
+        """Создаёт новую сессию для каждого запроса"""
+        return Session(self.engine)
 
     def add(self, obj):
-        session = self._ensure_session()
-        try:
-            session.add(obj)
-            session.commit()
-        except Exception as e:
-            print(f"Ошибка при добавлении: {e}, пробую еще раз...")
-            session.rollback()
-            if self._session:
-                try:
-                    self._session.close()
-                except:
-                    pass
-            self._session = Session(self.engine)
-            self._session.add(obj)
-            self._session.commit()
+        with self._get_session() as session:
+            try:
+                session.add(obj)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                print(f"Ошибка при добавлении: {e}")
+                raise
 
     def create_user(self, login: str, password: str, email: str):
-        session = self._ensure_session()
-        try:
-            res = session.execute(select(UserModel.login).where(UserModel.login == login))
-            user = res.scalar()
-            if user is not None:
-                return False
-            else:
-                res = session.execute(select(UserModel.id).order_by(UserModel.id.desc()))
-                id = res.scalar()
-                print(id)
-                if id:
-                    user = UserModel(id=(id + 1), login=login, email=email, password=hash_password(password).hex(),
-                                     verify=False)
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(UserModel.login).where(UserModel.login == login))
+                user = res.scalar()
+                if user is not None:
+                    return False
                 else:
-                    user = UserModel(id=1, login=login, email=email, password=hash_password(password).hex(),
-                                     verify=False)
-                self.add(user)
-                return True
-        except Exception as e:
-            print(f"Ошибка в create_user: {e}")
-            return False
+                    res = session.execute(select(UserModel.id).order_by(UserModel.id.desc()))
+                    id = res.scalar()
+                    if id:
+                        user = UserModel(id=(id + 1), login=login, email=email, password=hash_password(password).hex(),
+                                         verify=False)
+                    else:
+                        user = UserModel(id=1, login=login, email=email, password=hash_password(password).hex(),
+                                         verify=False)
+                    session.add(user)
+                    session.commit()
+                    return True
+            except Exception as e:
+                session.rollback()
+                print(f"Ошибка в create_user: {e}")
+                return False
 
     def check_email(self, email):
-        session = self._ensure_session()
-        try:
-            res = session.execute(select(UserModel).where(UserModel.email == email))
-            user = res.scalar()
-            return user is None
-        except Exception as e:
-            print(f"Ошибка в check_email: {e}")
-            return False
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(UserModel).where(UserModel.email == email))
+                user = res.scalar()
+                return user is None
+            except Exception as e:
+                print(f"Ошибка в check_email: {e}")
+                return False
 
     def verify_email(self, email):
-        session = self._ensure_session()
-        try:
-            res = session.execute(select(UserModel).where(UserModel.email == email))
-            user = res.scalar()
-            if user:
-                user.verify = True
-                session.commit()
-                return True
-            return False
-        except Exception as e:
-            print(f"Ошибка в verify_email: {e}")
-            return False
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(UserModel).where(UserModel.email == email))
+                user = res.scalar()
+                if user:
+                    user.verify = True
+                    session.commit()
+                    return True
+                return False
+            except Exception as e:
+                session.rollback()
+                print(f"Ошибка в verify_email: {e}")
+                return False
 
     def get_user(self, login):
-        session = self._ensure_session()
-        try:
-            res = session.execute(select(UserModel).where(UserModel.login == login))
-            user = res.scalar()
-            return user
-        except Exception as e:
-            print(f"Ошибка при получении пользователя: {e}")
-            if self._session:
-                try:
-                    self._session.close()
-                except:
-                    pass
-            self._session = Session(self.engine)
+        with self._get_session() as session:
             try:
-                res = self._session.execute(select(UserModel).where(UserModel.login == login))
+                res = session.execute(select(UserModel).where(UserModel.login == login))
                 return res.scalar()
-            except Exception as e2:
-                print(f"Повторная ошибка: {e2}")
+            except Exception as e:
+                print(f"Ошибка при получении пользователя: {e}")
                 return None
 
-    def create_photo(self, user_id: int, url: str):
-        session = self._ensure_session()
-        try:
-            res = session.execute(select(ProcessPhotoModel.id).order_by(ProcessPhotoModel.id.desc()))
-            last_id = res.scalar()
-            new_id = last_id + 1 if last_id else 1
+    def create_photo(self, input_path, output_path, timestamp, user_id, faces, plates):
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(ProcessPhotoModel.id).order_by(ProcessPhotoModel.id.desc()))
+                photo_id = res.scalar()
+                photo_id = photo_id + 1 if photo_id is not None else 0
+                process_photo = ProcessPhotoModel(
+                    id=photo_id, timestamp=timestamp,
+                    input_path=input_path, output_path=output_path,
+                    user_id=user_id, faces=faces,
+                    plates=plates
+                )
+                session.add(process_photo)
+                session.commit()
+                return photo_id
+            except Exception as e:
+                session.rollback()
+                print(f"Ошибка в create_photo: {e}")
+                return None
 
-            photo = ProcessPhotoModel(
-                id=new_id, timestamp=datetime.now(),
-                url=url, isProcessed=False, user_id=user_id
-            )
-            self.add(photo)
-            return photo
-        except Exception as e:
-            print(f"Ошибка в create_photo: {e}")
+    def get_photo(self, photo_id, user_id):
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(ProcessPhotoModel)
+                                      .where(ProcessPhotoModel.user_id == user_id)
+                                      .where(ProcessPhotoModel.id == photo_id))
+                return res.scalars().first()
+            except Exception as e:
+                print(f"Ошибка в get_photo: {e}")
+                return None
+
+    def get_user_photos(self, user_id, limit, page):
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(ProcessPhotoModel).where(ProcessPhotoModel.user_id == user_id)
+                                      .order_by(desc(ProcessPhotoModel.timestamp)).offset((page - 1) * limit).limit(limit))
+                return res.scalars().all()
+            except Exception as e:
+                print(f"Ошибка в get_user_photos: {e}")
+                return None
+
+    def delete_photo(self, photo_id, user_id):
+        photo = self.get_photo(photo_id, user_id)
+        if not photo:
             return None
-
-    def get_photo(self, photo_id: int):
-        session = self._ensure_session()
-        try:
-            res = session.execute(
-                select(ProcessPhotoModel).where(ProcessPhotoModel.id == photo_id)
-            )
-            photo = res.scalar()
-            return photo
-        except Exception as e:
-            print(f"Ошибка при получении фото {photo_id}: {e}")
-            if self._session:
-                try:
-                    self._session.close()
-                except:
-                    pass
-            self._session = Session(self.engine)
+        with self._get_session() as session:
             try:
-                res = self._session.execute(
-                    select(ProcessPhotoModel).where(ProcessPhotoModel.id == photo_id)
-                )
-                return res.scalar()
-            except Exception as e2:
-                print(f"Повторная ошибка: {e2}")
+                session.execute(delete(ProcessPhotoModel).where(ProcessPhotoModel.id == photo_id))
+                session.commit()
+                return True
+            except Exception as e:
+                session.rollback()
+                print(f"Ошибка в delete_photo: {e}")
                 return None
 
-    def get_user_photos(self, user_id: int, limit: int = 100, offset: int = 0):
-        session = self._ensure_session()
-        try:
-            res = session.execute(
-                select(ProcessPhotoModel)
-                .where(ProcessPhotoModel.user_id == user_id)
-                .order_by(ProcessPhotoModel.timestamp.desc())
-                .limit(limit)
-                .offset(offset)
-            )
-            photos = res.scalars().unique().all()
-            print(f"[get_user_photos] user_id={user_id}, найдено фото: {len(photos)}")
-            return photos
-        except Exception as e:
-            print(f"Ошибка при получении фото пользователя {user_id}: {e}")
-            if self._session:
-                try:
-                    self._session.close()
-                except:
-                    pass
-            self._session = Session(self.engine)
-            try:
-                res = self._session.execute(
-                    select(ProcessPhotoModel)
-                    .where(ProcessPhotoModel.user_id == user_id)
-                    .order_by(ProcessPhotoModel.timestamp.desc())
-                    .limit(limit)
-                    .offset(offset)
-                )
-                photos = res.scalars().unique().all()
-                print(f"[get_user_photos retry] user_id={user_id}, найдено фото: {len(photos)}")
-                return photos
-            except Exception as e2:
-                print(f"Повторная ошибка: {e2}")
-                return []
 
-    def get_unprocessed_photos(self, limit: int = 10):
-        session = self._ensure_session()
-        try:
-            res = session.execute(
-                select(ProcessPhotoModel)
-                .where(ProcessPhotoModel.isProcessed == False)
-                .order_by(ProcessPhotoModel.timestamp.asc())
-                .limit(limit)
-            )
-            photos = res.scalars().unique().all()
-            return photos
-        except Exception as e:
-            print(f"Ошибка при получении необработанных фото: {e}")
-            return []
 
-    def update_photo_status(self, photo_id: int, isProcessed: bool = True):
-        session = self._ensure_session()
-        try:
-            res = session.execute(
-                select(ProcessPhotoModel).where(ProcessPhotoModel.id == photo_id)
-            )
-            photo = res.scalar()
-
-            if photo:
-                photo.isProcessed = isProcessed
-                session.commit()
-                return True
-            return False
-        except Exception as e:
-            print(f"Ошибка при обновлении статуса фото {photo_id}: {e}")
-            session.rollback()
-            return False
-
-    def delete_photo(self, photo_id: int):
-        session = self._ensure_session()
-        try:
-            res = session.execute(
-                select(ProcessPhotoModel).where(ProcessPhotoModel.id == photo_id)
-            )
-            photo = res.scalar()
-
-            if photo:
-                session.delete(photo)
-                session.commit()
-                return True
-            return False
-        except Exception as e:
-            print(f"Ошибка при удалении фото {photo_id}: {e}")
-            session.rollback()
-            return False
-
-    def get_photos_count(self, user_id: int = None):
-        session = self._ensure_session()
-        try:
-            query = select(ProcessPhotoModel)
-            if user_id:
-                query = query.where(ProcessPhotoModel.user_id == user_id)
-
-            res = session.execute(query)
-            count = len(res.scalars().unique().all())
-            return count
-        except Exception as e:
-            print(f"Ошибка при подсчете фото: {e}")
-            return 0
 
 load_dotenv()
 URL = os.getenv('DB_URL')

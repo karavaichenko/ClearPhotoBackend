@@ -118,7 +118,7 @@ def process_image_with_yolo(self, image_path: str):
             meta={'progress': 50, 'status': 'Детекция объектов...'}
         )
 
-        results = model(image, verbose=False)[0]  # Берем первый результат
+        results = model(image, verbose=False)[0]
 
         faces_detected = 0
         plates_detected = 0
@@ -157,18 +157,9 @@ def process_image_with_yolo(self, image_path: str):
         output_path = str(output_dir / f"blurred_{input_path.name}")
 
         # Сохраняем результат
-        try:
-            cv2.imwrite(output_path, image)
-            logger.info(f"[{task_id}] Результат сохранен: {output_path}")
-        except Exception as e:
-            error_msg = f"Ошибка сохранения результата: {str(e)}"
-            logger.error(f"[{task_id}] {error_msg}")
-            logger.error(traceback.format_exc())
-            return {
-                'success': False,
-                'error': error_msg,
-                'task_id': task_id
-            }
+        cv2.imwrite(output_path, image)
+        logger.info(f"[{task_id}] Результат сохранен: {output_path}")
+
 
         result = {
             'success': True,
