@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from src.schemas import User, CreateUser, BadResponse, GoodResponse, VerifyRequest
+from src.schemas import User, CreateUser, BadResponse, GoodResponse, VerifyRequest, ChangePasswordRequest, \
+    ChangePasswordResponse, ResultEnum, AccountDataResponse
 from src.utils.auth import check_access_jwt, check_refresh_jwt, create_jwt
 from src.utils.utils import generate_verify_code, send_register_email, get_hash, validate_password
 from starlette.responses import JSONResponse
@@ -97,6 +98,34 @@ def auth(user_by_access: dict = Depends(check_access_jwt),
 def logout():
     response = add_cookie({"resultCode": 0}, "", "")
     return response
+
+@router.post('/auth/password')
+def change_password(req: ChangePasswordRequest, user_by_access: dict = Depends(check_access_jwt)):
+    if not user_by_access:
+        raise HTTPException(status_code=401)
+
+    res = database.change_user_password(user_by_access['id'], req.oldPassword, req.newPassword)
+    if res:
+        return ChangePasswordResponse()
+    else:
+        return ChangePasswordResponse(result=ResultEnum.failed)
+
+@router.get('/auth/account')
+def get_account_info(user_by_access: dict = Depends(check_access_jwt)):
+    if not user_by_access:
+        raise HTTPException(status_code=401)
+
+    photos_count = database.get_user_photos_count(user_by_access['id'])
+    if photos_count is None:
+        raise HTTPException(500, detail="Ошибка получения кол-ва фото")
+
+    user = database.get_user(user_by_access['login'])
+    if not user:
+        raise HTTPException(500, detail="Ошибка получения пользователя")
+
+    return AccountDataResponse(login=user.login, email=user.email, photoCount=photos_count)
+
+
 
 
 def add_cookie(content, refresh, access):

@@ -23,9 +23,13 @@ def get_photo_history(page: int, limit: int = 10, user_by_access: dict = Depends
         raise HTTPException(status_code=401)
 
     user_photos = database.get_user_photos(user_by_access["id"], limit, page)
+    count_photos = database.get_user_photos_count(user_by_access["id"])
+
+    if count_photos is None:
+        return PhotosHistory(photos=[], count=0)
     if not user_photos:
-        return PhotosHistory(photos=[])
-    user_photos_schema = PhotosHistory(photos=list(map(lambda x: x.to_schema(), user_photos)))
+        return PhotosHistory(photos=[], count=0)
+    user_photos_schema = PhotosHistory(photos=list(map(lambda x: x.to_schema(), user_photos)), count=count_photos)
 
     return user_photos_schema
 
@@ -49,7 +53,7 @@ def delete_photo(photo_id: int, user_by_access: dict = Depends(auth.check_access
     delete_result = database.delete_photo(photo_id, user_by_access["id"])
 
     if not delete_result:
-        raise DeletePhotoResponse(result=ResultEnum.failed)
+        return DeletePhotoResponse(result=ResultEnum.failed)
 
     return DeletePhotoResponse()
 

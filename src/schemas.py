@@ -24,6 +24,7 @@ class GoodResponse(BaseModel):
         self.resultCode = code
 
 
+
 # 100 - verify email sends
 # 101 - verify success
 # 102 - refresh tokens, send request again
@@ -49,20 +50,27 @@ class BadResponse(BaseModel):
 # 10 - no money
 # 12 - code does not exist
 
+class ResultEnum(str, Enum):
+    success = "success"
+    failed = "failed"
+
 
 class VerifyRequest(BaseModel):
     code: int
     hashcode: str
     email: str
 
+class ChangePasswordRequest(BaseModel):
+    oldPassword: str
+    newPassword: str
+
+class ChangePasswordResponse(BaseModel):
+    result: ResultEnum = ResultEnum.success
+
 
 
 # ========== Модели для обработки фото ===========
 
-
-class ResultEnum(str, Enum):
-    success = "success"
-    failed = "failed"
 
 class PhotoProcessResult(BaseModel):
     id: str | None
@@ -78,10 +86,20 @@ class PhotoSchema(BaseModel):
     output_path: str | None
     faces: int
     plates: int
+    timestamp: datetime
 
 class PhotosHistory(BaseModel):
     photos: list[PhotoSchema]
+    count: int
 
 class DeletePhotoResponse(BaseModel):
     result: ResultEnum = ResultEnum.success
+
+# ========== Модели аккаунта ===========
+
+class AccountDataResponse(BaseModel):
+    login: str
+    email: str
+    photoCount: int
+
     

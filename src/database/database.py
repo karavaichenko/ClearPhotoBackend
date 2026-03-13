@@ -1,7 +1,7 @@
 import os
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select, delete, desc
+from sqlalchemy import create_engine, select, delete, desc, func
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -41,6 +41,7 @@ class Database:
     def create_user(self, login: str, password: str, email: str):
         with self._get_session() as session:
             try:
+                print(password)
                 res = session.execute(select(UserModel.login).where(UserModel.login == login))
                 user = res.scalar()
                 if user is not None:
@@ -60,6 +61,23 @@ class Database:
             except Exception as e:
                 session.rollback()
                 print(f"Ошибка в create_user: {e}")
+                return False
+
+    def change_user_password(self, user_id, old_password, new_password):
+        from src.utils.utils import validate_password
+        with self._get_session() as session:
+            try:
+                user = session.execute(select(UserModel).where(UserModel.id == user_id)).scalar()
+                if not user:
+                    return False
+                if not validate_password(old_password, user.password):
+                    return False
+                user.password = hash_password(new_password).hex()
+                session.commit()
+                return True
+
+            except Exception as e:
+                print(f"Ошибка в change_user_password: {e}")
                 return False
 
     def check_email(self, email):
@@ -135,6 +153,15 @@ class Database:
                 return res.scalars().all()
             except Exception as e:
                 print(f"Ошибка в get_user_photos: {e}")
+                return None
+
+    def get_user_photos_count(self, user_id):
+        with self._get_session() as session:
+            try:
+                res = session.execute(select(func.count(ProcessPhotoModel.id)).where(ProcessPhotoModel.user_id == user_id))
+                return res.scalar()
+            except Exception as e:
+                print(f"Ошибка в get_user_photos_count: {e}")
                 return None
 
     def delete_photo(self, photo_id, user_id):

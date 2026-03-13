@@ -33,5 +33,9 @@ class ProcessPhotoModel(AbstractModel):
     user: Mapped["UserModel"] = relationship(back_populates="photos")
 
     def to_schema(self):
-        return PhotoSchema(id=self.id, input_path=self.input_path, output_path=self.output_path, faces=self.faces, plates=self.plates)
+        return PhotoSchema(
+            id=self.id, input_path=self.input_path,
+            output_path=self.output_path, faces=self.faces,
+            plates=self.plates, timestamp=self.timestamp
+        )
 

@@ -53,7 +53,8 @@ def process_photo(photo: UploadFile = File(...), user_by_access: dict = Depends(
         input_path=result.get("input_path"),
         output_path=result.get("output_path"),
         faces=result.get("faces_detected"),
-        plates=result.get("plates_detected")
+        plates=result.get("plates_detected"),
+        timestamp=datetime.datetime.now()
     )
 
 @router.get("/result/{photo_id}")
